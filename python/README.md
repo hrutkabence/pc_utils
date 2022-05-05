@@ -243,14 +243,18 @@ The roof clusters are used to create scaled bounding polygons.
 With the polygons the wall points are cropped, segmented and saved by buildings.  
 
    ``` 
-Usage:
+usage: clusters2building.py [-h] [-c CLUSTER_PATH] [-w WALLS_PATH] [-b BUILDINGS_PATH] [-a AREA] [-s SCALE] [-d DEBUG] pc_file_name
+
 positional arguments:
   pc_file_name          point cloud of the wall points (.PLY)
+
 optional arguments:
   -h, --help            show this help message and exit
-  -f FOLDER, --folder FOLDER
+  -c CLUSTER_PATH, --cluster_path CLUSTER_PATH
                         folder that contains the DBSCAN roof clusters
-  -fr FOLDER_RES, --folder_res FOLDER_RES
+  -w WALLS_PATH, --walls_path WALLS_PATH
+                        folder to save walls
+  -b BUILDINGS_PATH, --buildings_path BUILDINGS_PATH
                         folder to save buildings
   -a AREA, --area AREA  minimum base area to from a building segment
   -s SCALE, --scale SCALE
