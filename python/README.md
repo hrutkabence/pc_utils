@@ -3,12 +3,13 @@
 Processing steps to find building footprints in point clouds. These small utilities use open3d, gdal, numpy.
 
 1. Outliers handling, filtering by *pc_filter.py*
-2. Separate ground and non-ground point and DEM generation from ground points *pc2dem.py*
+2. Separate ground and non-ground point and DEM generation from ground points *pc2dem.py* using CSF algorithm
 3. Creating nDSM with low vegetation removed *pc2ndsm.py*
-4. Generatating spare point cloud using voxels, only significant planes are preserved with a point in the in the voxel and normal
-5. segment spare point cloud int o wall, roof and other points
-6. group wall and roof point with region enlarging
-7. ...
+4. Generatating spare point cloud using voxels, only significant planes are preserved with a point in the in the voxel and normal *building.py*
+5. segment spare point cloud int o wall, roof and other points *building.py*
+6. group roof points with clustering *dbscan_clustering.py*
+7. segment wall points by the roof polygons
+8. find 2D concave hull of wall segments
 
 ## Flowchart of processing:
 
@@ -19,9 +20,10 @@ Processing steps to find building footprints in point clouds. These small utilit
 ### pc_filter.py
 
 Downsample and noise reduction of point cloud. The parameters can be given
-in a json configuration file. An ordinal number is assigned to the method 
-name (statistical_outliers, radius_outliers, voxel_downsample) if it is larger 
-or equal to zero the method is applied.
+in a json configuration file or in the command line. An ordinal number is
+assigned to the method name (statistical_outliers, radius_outliers,
+voxel_downsample) if it is larger or equal to zero the method is applied in
+increasing order of the numbers.
 
 Usage:
 
@@ -44,7 +46,7 @@ points the sphere should contain and the radius of the sphere.
 Voxel downsample keeps one point in each occupied voxel calculating as an
 average of points in the voxel. There is only one parameter the voxel size.
 
-One, two or all filters can be applied in on session.
+One, two or all filters can be applied in a session.
 The applying order of the filters is defined in the json parameter file.
 
 Sample json parameter file
@@ -68,8 +70,8 @@ zero for the filter or the filter is not in the parameter file, it is not used.
 
 ### pc2dem.py
 
-Separate ground and non-ground points using cloth filter simulation. 
-Save non-ground point and a DEM generated from ground points.
+Separate ground and non-ground points using cloth filter simulation. (CSF) 
+Save non-ground points and a DEM generated from ground points using GDAL.
 
 ```
 usage: pc2dem.py [-h] [-r RESOLUTION] [-o OUTPUT] [--rigidness RIGIDNESS]
@@ -97,7 +99,7 @@ optional arguments:
 Point cloud to normalized Digital Surface Model (nDSM). The height differencess
 are calculated from a DTM (any GDAL compatible DTM can be used). The low
 vegetation and terrain can also be filtered adding a minimum elevation for the
-nDSM.
+nDSM. If no minimum elevation is given all points are preserved.
 
 Usage:
 
@@ -260,6 +262,10 @@ The scripts using a Machine Learning (ML) based algorithm, the DBSCAN clustering
 During the usage the distance to neighbors in a cluster (eps) and the minimum number of points required to form a cluster (min_points) have to be defined.
 
 ```
+Sources:
+http://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html?highlight=dbscan
+https://scikit-learn.org/stable/modules/generated/sklearn.cluster.DBSCAN.html
+
 usage: dbscan_clsutering.py file_name -e 0.15 -m 50 -f folder
 
 positional arguments:
@@ -267,6 +273,8 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+  -u MODUL, --modul MODUL         
+                        to use Open3D DBSCAN: 0, to use scikit-learn DBSCAN: 1, default is 0
   -e EPS, --eps EPS     distance to neighbors in a cluster
   -m MIN_POINTS, --min_points MIN_POINTS
                         minimum number of points required to form a cluster
@@ -274,7 +282,6 @@ optional arguments:
                         output folder
   -d DEBUG, --debug DEBUG
                         to switch debug mode (displaying the results) use: 1
-                        
    ```                     
 ### clusters2buildings.py 
 

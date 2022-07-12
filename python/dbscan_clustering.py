@@ -3,41 +3,50 @@
 '''
 Using the DBSCAN (machine learning based) clustering to separete group of points from each other.
 
-Source:
+Sources:
 http://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html?highlight=dbscan
+https://scikit-learn.org/stable/modules/generated/sklearn.cluster.DBSCAN.html
 
-usage: dbscan_clsutering.py file_name -e 0.15 -m 50 -f folder
+usage: dbscan_clsutering.py file_name -u 1 -e 0.15 -m 50 -f folder
 
 positional arguments:
   pc_file_name          point cloud of the segmented points (.PLY)
 
 optional arguments:
   -h, --help            show this help message and exit
-  -e EPS, --eps EPS     distance to neighbors in a cluster
+  -u MODUL, --modul MODUL
+                        to use Open3D DBSCAN: 0, to use scikit-learn DBSCAN: 1, default is 0
+  -e EPS, --eps EPS     maximum distance between two samples for one to be considered as in the neighborhood of the other
   -m MIN_POINTS, --min_points MIN_POINTS
-                        minimum number of points required to form a cluster
+                        at Open3D method (0): number of samples (or total weight) in a neighborhood for a point to be considered as a core      
+                        point, at scikit-learn method (1): minimum number of points required to form a cluster
   -f FOLDER, --folder FOLDER
                         output folder
   -d DEBUG, --debug DEBUG
                         to switch debug mode (displaying the results) use: 1
-
 '''
 
+import sys
 import os
 import shutil
 import argparse
 import numpy as np
 import open3d as o3d
 import matplotlib.pyplot as plt
+from sklearn.datasets import make_classification
+from sklearn.cluster import DBSCAN
 
 # Command windows parameters
 parser = argparse.ArgumentParser()
 parser.add_argument('name', metavar='pc_file_name', type=str, nargs=1,
                     help='point cloud of the segmented points (.PLY)')
-parser.add_argument('-e', '--eps', type=float, default=0.15,
-                    help='defines the distance to neighbors in a cluster')
-parser.add_argument('-m', '--min_points', type=int, default=50,
-                    help=' minimum number of points required to form a cluster')
+parser.add_argument('-u', '--modul', type=int, default=0,
+                    help='to use Open3D DBSCAN: 0, to use scikit-learn DBSCAN: 1, default is 0')                    
+parser.add_argument('-e', '--eps', type=float, default=0.4,  
+                    help='maximum distance between two samples for one to be considered as in the neighborhood of the other')
+parser.add_argument('-m', '--min_points', type=int, default=100,
+                    help='at Open3D method (0): number of samples (or total weight) in a neighborhood for a point to be considered as a core point,'\
+                          ' at scikit-learn method (1): minimum number of points required to form a cluster')
 parser.add_argument('-f', '--folder', type=str, default='clusters',
                     help='output folder')
 parser.add_argument('-d', '--debug', type=int, default=0,
@@ -46,6 +55,7 @@ args = parser.parse_args()
 
 # Parameters into variables
 pc_filename = args.name[0]
+modul = args.modul
 new_folder = args.folder
 eps = args.eps
 min_points = args.min_points #TODO: check the parameters --> too much clusters, but the result is promising
@@ -71,13 +81,29 @@ else:
 pcd = o3d.io.read_point_cloud(pc_filename)
 xyz = np.asarray(pcd.points)
 
-# Labelling with the DBSCAN
-labels = np.array(pcd.cluster_dbscan(eps, min_points))
+# Choose modul
+if modul == 0:
+    # Labelling with the Open3D DBSCAN
+    labels = np.array(pcd.cluster_dbscan(eps, min_points))
+    # Add clusters for loop
+    clusters = np.unique(labels)
+elif modul == 1:
+    # Labelling with scikit-learning DBSCAN
+    model = DBSCAN(eps=eps, min_samples=min_points, algorithm='auto', n_jobs=-1) # algorithm: defines the method of find neareast neighbors,
+                                                              #kd_tree           # n_jobs: number of paralell job, -1 means all processors
+    # fit model and predict clusters
+    labels = model.fit_predict(xyz[:,:])
+    # retrieve unique clusters
+    clusters = np.unique(labels)
+else:
+    print('Please add values of 0 (Opend3D DBSCAN) or 1 (scikit-learn DBSCAN)!')
 
-# Add clusters for loop
-clusters = np.unique(labels)
+# If there is no culters
+if len(clusters) == 0:
+    print('No roof clusters found')
+    sys.exit(1)
 
-# Save clusters into point clouds TODO: condition aon the min. number of points
+# Save clusters into point clouds TODO: condition on the min. number of points
 for cluster in clusters:
 
     # Get row indexes for samples with this cluster
