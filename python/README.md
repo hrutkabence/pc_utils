@@ -273,15 +273,17 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -u MODUL, --modul MODUL         
-                        to use Open3D DBSCAN: 0, to use scikit-learn DBSCAN: 1, default is 0
-  -e EPS, --eps EPS     distance to neighbors in a cluster
+  -u MODUL, --modul MODUL
+                        to use Open3D DBSCAN: 0, to use scikit-learn DBSCAN: 1, to use HDBSCAN: 2, default is 0
+  -e EPS, --eps EPS     maximum distance between two samples for one to be considered as in the neighborhood of the
+                        other
   -m MIN_POINTS, --min_points MIN_POINTS
-                        minimum number of points required to form a cluster
+                        at Open3D method (0): number of samples (or total weight) in a neighborhood for a point to be
+                        considered as a core point, at scikit-learn method (1): minimum number of points required to
+                        form a cluster
   -f FOLDER, --folder FOLDER
                         output folder
-  -d DEBUG, --debug DEBUG
-                        to switch debug mode (displaying the results) use: 1
+  -d, --debug           to switch debug mode (displaying the results)
    ```                     
 ### clusters2buildings.py 
 
@@ -306,6 +308,6 @@ optional arguments:
   -a AREA, --area AREA  minimum base area to from a building segment
   -s SCALE, --scale SCALE
                         scaling the roofs area to crop wall points
-  -d DEBUG, --debug DEBUG
-                        to switch debug mode (displaying the results) use: 1
+  -r, --random_colors   random colors mode is on - colorize clusters with random colors
+  -d, --debug           to switch on debug mode (displaying the results)
    ``` 

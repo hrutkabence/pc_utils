@@ -47,7 +47,7 @@ def voxel_segment_multi(voxel, args, que):
                 tmp = voxel.select_by_index(inliers)
                 angle = abs(voxel_angle(plane_model))
                 xyz = np.asarray(tmp.points)
-                print(f'*** {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
+                #print(f'*** {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
                 if angle < args.angle_limits[0]:    # wall
                     que.put(('w', xyz))
                 elif angle < args.angle_limits[1] or \
@@ -70,8 +70,8 @@ def voxel_segment(voxel, args):
     """
     res = []
     a = np.mean(np.asarray(voxel.points), axis=0)
-    if 4.5 < a[0] < 5.5 and 0 < a[1] < 1.5:
-        print(a)
+    #if 4.5 < a[0] < 5.5 and 0 < a[1] < 1.5:
+    #    print(a)
     for i in range(args.ransac_n_plane):
         n = np.asarray(voxel.points).shape[0]
         if n > args.ransac_limit:
@@ -84,15 +84,19 @@ def voxel_segment(voxel, args):
                 tmp = voxel.select_by_index(inliers)
                 angle = abs(voxel_angle(plane_model))
                 xyz = np.asarray(tmp.points)
+                col = np.asarray(tmp.colors)
+
                 if angle < args.angle_limits[0]:    # wall
                     res.append(['w', xyz])
-                    print(f'*** wall {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
+                    res.append(['w_c',col])
+                    #print(f'*** wall {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
                 elif angle < args.angle_limits[1] or \
                      np.max(xyz[:, 2]) < args.roof_z: # other
                     pass
                 else:   # roof
                     res.append(['r', xyz])
-                    print(f'*** roof {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
+                    res.append(['r_c', col])
+                    #print(f'*** roof {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
 
                 # reduce pc to outliers
                 voxel = voxel.select_by_index(inliers, invert=True)
@@ -149,6 +153,8 @@ class PointCloud():
         self.roof_z = roof_z
         self.pc = o3d.io.read_point_cloud(file_name)
         pc_xyz = np.asarray(self.pc.points)
+        pc_col = np.asarray(self.pc.colors)
+
         if pc_xyz.shape[0] < 1:    # empty point cloud?
             self.pc_mi = None
             self.pc_index = None
@@ -206,12 +212,12 @@ class PointCloud():
                     voxel = zxvoxels.crop(bbox)
                     voxel_xyz = np.asarray(voxel.points)
                     if voxel_xyz.shape[0] > self.ransac_limit:  # are there enough points in voxel
-                        print(k, i, j, voxel_xyz.shape)
+                        #print(k, i, j, voxel_xyz.shape)
                         if len(procs) >= n_cpu:     # all available cores used?
                             for proc in procs:
                                 proc.join()         # wait for processes
                             procs = []
-                            print(f'procs len: {len(procs)}')
+                            #print(f'procs len: {len(procs)}')
                             while not res.empty():  # get results from queue
                                 t, part = res.get()
                                 if t == 'w':
@@ -242,6 +248,9 @@ class PointCloud():
         """
         w_list = []     # list for wall segments by planes
         r_list = []     # list for roof segments by planes
+        w_col_list = []
+        r_col_list = []
+
         args = MultiPar(self)
         for k in range(self.rng[2]+1):
             # select voxels in the same elevation
@@ -262,23 +271,35 @@ class PointCloud():
                                                                max_bound=(x+self.voxel_size, y+self.voxel_size, z+self.voxel_size))
                     voxel = zxvoxels.crop(bbox)
                     voxel_xyz = np.asarray(voxel.points)
-                    if voxel_xyz.shape[0] > 0:
-                        print(k, i, j, voxel_xyz.shape)
+                    #print(np.asarray(voxel.colors))
+                    #if voxel_xyz.shape[0] > 0:
+                    #    print(k, i, j, voxel_xyz.shape)
                     if voxel_xyz.shape[0] > self.ransac_limit:  # are there enough points in voxel
                         l_parts = voxel_segment(voxel, args)
                         for l in l_parts:
                             if l[0] == 'w':
                                 w_list.append(l[1])
+                            elif l[0] == 'w_c':
+                                w_col_list.append(l[1])                                
                             elif l[0] == 'r':
                                 r_list.append(l[1])
+                            elif l[0] == 'r_c':
+                                r_col_list.append(l[1])
         w_xyz = None
         r_xyz = None
+        w_col = None
+        r_col = None
+
         if len(w_list) > 0:
             w_xyz = np.concatenate(w_list)
         if len(r_list) > 0:
             r_xyz = np.concatenate(r_list)
+        if len(w_col_list) > 0:
+            w_col = np.concatenate(w_col_list)
+        if len(r_col_list) > 0:
+            r_col = np.concatenate(r_col_list)
 
-        return (w_xyz, r_xyz)
+        return (w_xyz, r_xyz, w_col, r_col)
 
 if __name__ == "__main__":
 
@@ -360,17 +381,19 @@ if __name__ == "__main__":
     if MULTI:
         w, r = PC.segment_pc_multi()
     else:
-        w, r = PC.segment_pc()
+        w, r, w_col, r_col = PC.segment_pc()
     n_w = n_r = 0
     if w is not None:
         pc = o3d.geometry.PointCloud()
         pc.points = o3d.utility.Vector3dVector(w)       # walls
+        pc.colors = o3d.utility.Vector3dVector(w_col)   # roof colors 
         fname = os.path.join(OUT_DIR, base_name + '_wall.ply')
         o3d.io.write_point_cloud(fname, pc)
         n_w = w.shape[0]
     if r is not None:
         pc = o3d.geometry.PointCloud()
         pc.points = o3d.utility.Vector3dVector(r)       # roofs
+        pc.colors = o3d.utility.Vector3dVector(r_col)   # roof colors
         fname = os.path.join(OUT_DIR, base_name + '_roof.ply')
         o3d.io.write_point_cloud(fname, pc)
         n_r = r.shape[0]
